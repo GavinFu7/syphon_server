@@ -1,6 +1,6 @@
 # syphon_server
 
-A macOS Flutter plugin that publishes Flutter widget frames as a Syphon Metal server for real-time sharing with Syphon clients (for example VJ or recording apps).
+A macOS Flutter plugin that publishes Flutter widget frames as a [Syphon](https://github.com/Syphon/Syphon-Framework) Metal server for real-time sharing with Syphon clients (for example VJ or recording apps).
 
 ## Platform support
 
@@ -15,6 +15,7 @@ A macOS Flutter plugin that publishes Flutter widget frames as a Syphon Metal se
 - Capture a dedicated offscreen widget via `RepaintBoundary`
 - Convert frames to RGBA and publish them through a Metal texture
 - Automatically publish the first frame after a successful `start()`
+- Status listeners for start / stop, including stops caused by start errors
 
 ## Installation
 
@@ -22,8 +23,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  syphon_server:
-    path: ../syphon_server # or your package source
+  syphon_server: ^0.0.2
 ```
 
 Then run:
@@ -62,8 +62,19 @@ class MyPage extends StatefulWidget {
 class _MyPageState extends State<MyPage> {
   final controller = SyphonServerController();
 
+  void _onStatus(bool running) {
+    debugPrint('Syphon server ${running ? 'started' : 'stopped'}');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    controller.onStatusListener(_onStatus);
+  }
+
   @override
   void dispose() {
+    controller.removeStatusListener(_onStatus);
     controller.stop();
     controller.dispose();
     super.dispose();
@@ -117,6 +128,22 @@ await WidgetsBinding.instance.endOfFrame;
 await controller.publishWidget();
 ```
 
+## Status listeners
+
+```dart
+void onStatus(bool running) {
+  // true  -> start succeeded
+  // false -> stop(), or start() failed and was cleaned up
+}
+
+controller.onStatusListener(onStatus);
+controller.removeStatusListener(onStatus);
+```
+
+- `start()` success → notifies `true`
+- `stop()` → notifies `false`
+- `start()` failure → cleans up native resources, notifies `false`, then rethrows
+
 ## API overview
 
 ### `SyphonServer`
@@ -133,12 +160,15 @@ Wraps the local `child` and mounts an offscreen `syphonView` while the server is
 
 | Member | Description |
 | --- | --- |
-| `start({name})` | Starts the native server, mounts the offscreen view, and publishes the first frame |
-| `stop()` | Stops the server and unmounts the offscreen view |
+| `start({name})` | Starts the native server, mounts the offscreen view, publishes the first frame, notifies `true` |
+| `stop()` | Stops the server, unmounts the offscreen view, notifies `false` |
 | `isRunning()` | Returns whether the native server is running |
+| `isStarted` | Whether this controller currently considers the server started |
 | `publishWidget()` | Captures the current `syphonView` and publishes it |
+| `onStatusListener(listener)` | Registers a start / stop status listener |
+| `removeStatusListener(listener)` | Removes a status listener |
 | `showSyphonView` | `ValueNotifier<bool>` for whether the offscreen view is mounted |
-| `dispose()` | Releases controller resources |
+| `dispose()` | Releases controller resources and clears listeners |
 
 ## Example
 
@@ -148,3 +178,10 @@ See [`example/`](example/):
 cd example
 flutter run -d macos
 ```
+
+After starting the server, use a Syphon client (for example Syphon Recorder) and select `Syphon Server Example`.
+
+## License and dependencies
+
+- This plugin: see the repository license
+- Bundled [Syphon.xcframework](https://github.com/Syphon/Syphon-Framework) (Metal server)

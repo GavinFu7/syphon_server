@@ -1,6 +1,6 @@
 name: syphon_server
 description: "macOS Flutter plugin that publishes widgets as a Syphon Metal server for real-time frame sharing with Syphon clients."
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/GavinFu7
 repository: https://github.com/GavinFu7/syphon_server
 

@@ -5,36 +5,62 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+/// Called when the Syphon server starts (`true`) or stops (`false`),
+/// including stops caused by errors during [SyphonServerController.start].
+typedef SyphonServerStatusListener = void Function(bool running);
+
 class SyphonServerController {
-  /// 必須與 Swift 端 [SyphonServerPlugin.channelName] 相同。
+  /// Must match Swift [SyphonServerPlugin.channelName].
   static const String channelName = 'syphon_server';
 
   final MethodChannel _channel = const MethodChannel(channelName);
   final GlobalKey _syphonBoundaryKey = GlobalKey();
+  final List<SyphonServerStatusListener> _statusListeners =
+      <SyphonServerStatusListener>[];
 
-  /// 控制是否掛載離屏 [SyphonServer.syphonView]（供 [SyphonServer] 監聽）。
+  /// Controls whether the offscreen [SyphonServer.syphonView] is mounted.
   final ValueNotifier<bool> showSyphonView = ValueNotifier(false);
 
-  /// 啟動 Syphon Server，[name] 會顯示在其他 Syphon Client 的伺服器列表中。
-  /// 成功後會掛載離屏 view，並在 layout 完成後自動 [publishWidget]。
-  Future<void> start({String name = 'Syphon Server'}) async {
-    await _channel.invokeMethod<void>('start', <String, dynamic>{'name': name});
-    showSyphonView.value = true;
-    await _waitUntilBoundaryReady();
-    await publishWidget();
-  }
-
   bool _disposed = false;
+  bool _running = false;
 
-  /// 停止 Syphon Server 並釋放原生資源。
-  Future<void> stop() async {
-    if (!_disposed) {
-      showSyphonView.value = false;
-    }
-    await _channel.invokeMethod<void>('stop');
+  /// Whether this controller considers the server started.
+  bool get isStarted => _running;
+
+  /// Registers a listener for start / stop status changes.
+  void onStatusListener(SyphonServerStatusListener listener) {
+    _statusListeners.add(listener);
   }
 
-  /// 查詢原生端 Server 是否仍在運行。
+  /// Removes a previously registered status listener.
+  void removeStatusListener(SyphonServerStatusListener listener) {
+    _statusListeners.remove(listener);
+  }
+
+  /// Starts the Syphon server. [name] appears in other Syphon clients.
+  /// On success, mounts the offscreen view, publishes the first frame, and
+  /// notifies status listeners with `true`.
+  /// On failure, cleans up, notifies listeners with `false`, then rethrows.
+  Future<void> start({String name = 'Syphon Server'}) async {
+    try {
+      await _channel.invokeMethod<void>('start', <String, dynamic>{'name': name});
+      showSyphonView.value = true;
+      await _waitUntilBoundaryReady();
+      await publishWidget();
+      _notifyStatus(true);
+    } catch (error) {
+      await _stopInternal(forceNotifyStopped: true);
+      rethrow;
+    }
+  }
+
+  /// Stops the Syphon server and releases native resources.
+  /// Notifies status listeners with `false`.
+  Future<void> stop() async {
+    await _stopInternal();
+  }
+
+  /// Returns whether the native server is still running.
   Future<bool> isRunning() async {
     final running = await _channel.invokeMethod<bool>('isRunning');
     return running ?? false;
@@ -43,24 +69,22 @@ class SyphonServerController {
   Future<void> publishWidget() async {
     final context = _syphonBoundaryKey.currentContext;
     if (context == null) {
-      throw StateError('RepaintBoundary 尚未掛載到 Widget tree');
+      throw StateError('RepaintBoundary is not mounted in the widget tree');
     }
     final boundary = context.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
-      throw StateError('找不到 RenderRepaintBoundary');
+      throw StateError('RenderRepaintBoundary not found');
     }
     if (!boundary.hasSize || boundary.size.isEmpty) {
-      throw StateError('RepaintBoundary 尚未完成 layout');
+      throw StateError('RepaintBoundary has not completed layout');
     }
 
-    // 將 Widget 繪製結果轉成影像（pixelRatio: 1.0 = 邏輯像素 = 實體像素）
     final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
     try {
-      // rawRgba：每個像素 4 bytes（R,G,B,A），原生端可直接寫入 MTLTexture
       final ByteData? byteData =
           await image.toByteData(format: ui.ImageByteFormat.rawRgba);
       if (byteData == null) {
-        throw StateError('無法編碼畫面資料');
+        throw StateError('Failed to encode frame pixels');
       }
 
       final pixels = byteData.buffer.asUint8List(
@@ -75,6 +99,28 @@ class SyphonServerController {
       });
     } finally {
       image.dispose();
+    }
+  }
+
+  Future<void> _stopInternal({bool forceNotifyStopped = false}) async {
+    if (!_disposed) {
+      showSyphonView.value = false;
+    }
+    try {
+      await _channel.invokeMethod<void>('stop');
+    } finally {
+      _notifyStatus(false, force: forceNotifyStopped);
+    }
+  }
+
+  void _notifyStatus(bool running, {bool force = false}) {
+    if (!force && _running == running) {
+      return;
+    }
+    _running = running;
+    final listeners = List<SyphonServerStatusListener>.of(_statusListeners);
+    for (final listener in listeners) {
+      listener(running);
     }
   }
 
@@ -98,6 +144,7 @@ class SyphonServerController {
 
   void dispose() {
     _disposed = true;
+    _statusListeners.clear();
     showSyphonView.dispose();
   }
 }
@@ -127,7 +174,8 @@ class _SyphonServerState extends State<SyphonServer> {
         if (!showSyphonView) {
           return widget.child;
         }
-        // Positioned 不參與 Stack 尺寸計算，避免 1920x1080 離屏 view 撐爆 layout。
+        // Positioned does not affect Stack size, so a large offscreen view
+        // will not expand the local layout.
         return Stack(
           children: [
             Positioned(

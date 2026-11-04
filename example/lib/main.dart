@@ -25,10 +25,22 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final SyphonServerController syphonServerController = SyphonServerController();
 
+
+  void onSyphonServerStatusChange(bool running) {
+    debugPrint('Syphon server status: ${running ? 'started' : 'stopped'}');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    syphonServerController.onStatusListener(onSyphonServerStatusChange);
+  }
+
   @override
   void dispose() {
     // stop 內會先同步關掉離屏 view；原生 stop 不阻塞 dispose。
     syphonServerController.stop();
+    syphonServerController.removeStatusListener(onSyphonServerStatusChange);
     syphonServerController.dispose();
     super.dispose();
   }
