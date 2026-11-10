@@ -33,7 +33,7 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    syphonServerController.onStatusListener(onSyphonServerStatusChange);
+    syphonServerController.addStatusListener(onSyphonServerStatusChange);
   }
 
   @override

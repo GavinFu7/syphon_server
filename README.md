@@ -23,7 +23,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  syphon_server: ^0.0.2
+  syphon_server: ^0.0.3
 ```
 
 Then run:
@@ -69,13 +69,13 @@ class _MyPageState extends State<MyPage> {
   @override
   void initState() {
     super.initState();
-    controller.onStatusListener(_onStatus);
+    controller.addStatusListener(_onStatus);
   }
 
   @override
   void dispose() {
-    controller.removeStatusListener(_onStatus);
     controller.stop();
+    controller.removeStatusListener(_onStatus);
     controller.dispose();
     super.dispose();
   }
@@ -136,7 +136,7 @@ void onStatus(bool running) {
   // false -> stop(), or start() failed and was cleaned up
 }
 
-controller.onStatusListener(onStatus);
+controller.addStatusListener(onStatus);
 controller.removeStatusListener(onStatus);
 ```
 
@@ -148,7 +148,7 @@ controller.removeStatusListener(onStatus);
 
 ### `SyphonServer`
 
-Wraps the local `child` and mounts an offscreen `syphonView` while the server is running.
+Wraps the local `child` and keeps an offscreen `syphonView` in a stable `Stack` (shown via `Offstage` while the server is running), so toggling Syphon does not remount `child`.
 
 | Parameter | Description |
 | --- | --- |
@@ -160,14 +160,14 @@ Wraps the local `child` and mounts an offscreen `syphonView` while the server is
 
 | Member | Description |
 | --- | --- |
-| `start({name})` | Starts the native server, mounts the offscreen view, publishes the first frame, notifies `true` |
-| `stop()` | Stops the server, unmounts the offscreen view, notifies `false` |
+| `start({name})` | Starts the native server, shows the offscreen view, publishes the first frame, notifies `true` |
+| `stop()` | Stops the server, hides the offscreen view, notifies `false` |
 | `isRunning()` | Returns whether the native server is running |
 | `isStarted` | Whether this controller currently considers the server started |
-| `publishWidget()` | Captures the current `syphonView` and publishes it |
-| `onStatusListener(listener)` | Registers a start / stop status listener |
+| `publishWidget()` | Waits until the offscreen boundary is laid out and painted, then captures and publishes it |
+| `addStatusListener(listener)` | Adds a start / stop status listener |
 | `removeStatusListener(listener)` | Removes a status listener |
-| `showSyphonView` | `ValueNotifier<bool>` for whether the offscreen view is mounted |
+| `showSyphonView` | `ValueNotifier<bool>` for whether the offscreen view is shown |
 | `dispose()` | Releases controller resources and clears listeners |
 
 ## Example
