@@ -4,14 +4,15 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'syphon_server'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.version          = '0.0.3'
+  s.summary          = 'Flutter macOS plugin that publishes widgets as a Syphon Metal server.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+macOS Flutter plugin that publishes widget frames as a Syphon Metal server
+for real-time sharing with Syphon clients.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/GavinFu7/syphon_server'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'Gavin Fu' => 'https://github.com/GavinFu7' }
 
   s.source           = { :path => '.' }
   s.source_files = 'syphon_server/Sources/syphon_server/**/*.{swift,h,m,mm}'

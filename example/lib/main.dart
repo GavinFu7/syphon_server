@@ -38,9 +38,8 @@ class _HomeState extends State<Home> {
 
   @override
   void dispose() {
-    // stop 內會先同步關掉離屏 view；原生 stop 不阻塞 dispose。
-    syphonServerController.stop();
     syphonServerController.removeStatusListener(onSyphonServerStatusChange);
+    // dispose() best-effort stops the native server.
     syphonServerController.dispose();
     super.dispose();
   }

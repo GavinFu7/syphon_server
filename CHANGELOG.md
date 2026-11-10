@@ -1,8 +1,14 @@
 ## 0.0.3
 
+* Mount the offscreen `syphonView` only while the server is started (`showSyphonView`), using an offscreen `Positioned` instead of always keeping a large hidden tree.
+* `dispose()` now best-effort stops the native Syphon server before releasing resources.
+* Improve boundary readiness waiting in release/profile builds, where `debugNeedsPaint` is always false.
+* Fix example widget test to match the current UI.
+* Update podspec metadata and align package homepage with the repository URL.
+* Correct README / changelog docs that incorrectly described `Offstage` usage.
 * Rename `onStatusListener` to `addStatusListener` for consistency with Flutter listener APIs.
 * Fix `publishWidget()` racing ahead of layout/paint: wait until the offscreen `RepaintBoundary` is laid out and painted before calling `toImage()`.
-* Keep a stable `Stack` with `Offstage` when toggling the Syphon view, so local `child` widgets (for example `PlatformMenuBar`) are not remounted.
+* Keep a stable `Stack` when toggling the Syphon view, so local `child` widgets (for example `PlatformMenuBar`) are not remounted.
 * Increase boundary readiness retries and require at least one painted frame before publishing.
 
 ## 0.0.2

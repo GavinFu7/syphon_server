@@ -148,7 +148,7 @@ controller.removeStatusListener(onStatus);
 
 ### `SyphonServer`
 
-Wraps the local `child` and keeps an offscreen `syphonView` in a stable `Stack` (shown via `Offstage` while the server is running), so toggling Syphon does not remount `child`.
+Wraps the local `child` and keeps an offscreen `syphonView` in a stable `Stack`. While the server is running, `syphonView` is mounted via an offscreen `Positioned` (not `Offstage`, which skips paint and breaks capture). Toggling Syphon does not remount `child`.
 
 | Parameter | Description |
 | --- | --- |
@@ -168,7 +168,7 @@ Wraps the local `child` and keeps an offscreen `syphonView` in a stable `Stack` 
 | `addStatusListener(listener)` | Adds a start / stop status listener |
 | `removeStatusListener(listener)` | Removes a status listener |
 | `showSyphonView` | `ValueNotifier<bool>` for whether the offscreen view is shown |
-| `dispose()` | Releases controller resources and clears listeners |
+| `dispose()` | Best-effort stops the native server, then releases controller resources and clears listeners |
 
 ## Example
 

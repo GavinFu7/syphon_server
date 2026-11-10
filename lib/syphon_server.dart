@@ -20,7 +20,6 @@ class SyphonServerController {
       <SyphonServerStatusListener>[];
 
   /// Controls whether the offscreen [SyphonServer.syphonView] is mounted.
-  /// Kept for API compatibility; the view stays in the tree so it can paint.
   final ValueNotifier<bool> showSyphonView = ValueNotifier(false);
 
   bool _disposed = false;
@@ -44,10 +43,18 @@ class SyphonServerController {
   /// notifies status listeners with `true`.
   /// On failure, cleans up, notifies listeners with `false`, then rethrows.
   Future<void> start({String name = 'Syphon Server'}) async {
+    _ensureNotDisposed();
     try {
       await _channel.invokeMethod<void>('start', <String, dynamic>{'name': name});
+      if (_disposed) {
+        await _channel.invokeMethod<void>('stop');
+        return;
+      }
       showSyphonView.value = true;
       await publishWidget();
+      if (_disposed) {
+        return;
+      }
       _notifyStatus(true);
     } catch (error) {
       await _stopInternal(forceNotifyStopped: true);
@@ -58,21 +65,30 @@ class SyphonServerController {
   /// Stops the Syphon server and releases native resources.
   /// Notifies status listeners with `false`.
   Future<void> stop() async {
+    if (_disposed) {
+      return;
+    }
     await _stopInternal();
   }
 
   /// Returns whether the native server is still running.
   Future<bool> isRunning() async {
+    _ensureNotDisposed();
     final running = await _channel.invokeMethod<bool>('isRunning');
     return running ?? false;
   }
 
   Future<void> publishWidget() async {
+    _ensureNotDisposed();
     Object? lastError;
 
     // Retry: child widgets (e.g. async setState) can dirty paint between
     // readiness checks and toImage().
     for (var attempt = 0; attempt < 10; attempt++) {
+      if (_disposed) {
+        throw StateError('SyphonServerController has been disposed');
+      }
+
       final boundary = await _waitUntilBoundaryReady();
       if (boundary == null) {
         lastError = StateError('RepaintBoundary is not ready to capture');
@@ -122,11 +138,18 @@ class SyphonServerController {
     try {
       await _channel.invokeMethod<void>('stop');
     } finally {
-      _notifyStatus(false, force: forceNotifyStopped);
+      if (!_disposed) {
+        _notifyStatus(false, force: forceNotifyStopped);
+      } else {
+        _running = false;
+      }
     }
   }
 
   void _notifyStatus(bool running, {bool force = false}) {
+    if (_disposed) {
+      return;
+    }
     if (!force && _running == running) {
       return;
     }
@@ -138,17 +161,38 @@ class SyphonServerController {
   }
 
   /// Waits until the offscreen boundary is laid out and painted.
-  /// Never returns a boundary that still `debugNeedsPaint`.
+  ///
+  /// In debug builds, also waits until [RenderObject.debugNeedsPaint] is false.
+  /// In release/profile builds that flag is always false, so after the first
+  /// ready layout we wait one extra frame to allow paint to complete.
   Future<RenderRepaintBoundary?> _waitUntilBoundaryReady() async {
+    var sawReadyLayout = false;
+
     for (var attempt = 0; attempt < 60; attempt++) {
       final context = _syphonBoundaryKey.currentContext;
       final boundary = context?.findRenderObject() as RenderRepaintBoundary?;
       final hasLayout =
           boundary != null && boundary.hasSize && !boundary.size.isEmpty;
-      if (hasLayout && !boundary.debugNeedsPaint) {
-        return boundary;
+
+      if (!hasLayout) {
+        sawReadyLayout = false;
+        await _waitForNextFrame();
+        continue;
       }
-      await _waitForNextFrame();
+
+      if (kDebugMode && boundary.debugNeedsPaint) {
+        sawReadyLayout = false;
+        await _waitForNextFrame();
+        continue;
+      }
+
+      if (!sawReadyLayout) {
+        sawReadyLayout = true;
+        await _waitForNextFrame();
+        continue;
+      }
+
+      return boundary;
     }
     return null;
   }
@@ -164,9 +208,31 @@ class SyphonServerController {
     await frame.future;
   }
 
+  void _ensureNotDisposed() {
+    if (_disposed) {
+      throw StateError('SyphonServerController has been disposed');
+    }
+  }
+
+  /// Stops the native server (best-effort) and releases controller resources.
   void dispose() {
+    if (_disposed) {
+      return;
+    }
     _disposed = true;
+    _running = false;
     _statusListeners.clear();
+    // Example apps often call stop() without awaiting before dispose().
+    if (showSyphonView.value) {
+      showSyphonView.value = false;
+    }
+    unawaited(() async {
+      try {
+        await _channel.invokeMethod<void>('stop');
+      } catch (_) {
+        // Best-effort cleanup during dispose.
+      }
+    }());
     showSyphonView.dispose();
   }
 }
@@ -190,21 +256,28 @@ class SyphonServer extends StatefulWidget {
 class _SyphonServerState extends State<SyphonServer> {
   @override
   Widget build(BuildContext context) {
-    // Always keep the offscreen view in the tree and painted.
-    // Offstage skips paint and breaks [RepaintBoundary.toImage].
-    // A stable Stack also avoids remounting [child] (e.g. PlatformMenuBar).
-    return Stack(
-      children: [
-        Positioned(
-          left: -10000,
-          top: -10000,
-          child: RepaintBoundary(
-            key: widget.controller._syphonBoundaryKey,
-            child: widget.syphonView,
-          ),
-        ),
-        widget.child,
-      ],
+    // Mount the offscreen view only while the server is started.
+    // Do not use Offstage: it skips paint and breaks [RepaintBoundary.toImage].
+    // Pass [child] through ValueListenableBuilder so toggling does not remount it.
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.controller.showSyphonView,
+      builder: (context, show, child) {
+        return Stack(
+          children: [
+            if (show)
+              Positioned(
+                left: -10000,
+                top: -10000,
+                child: RepaintBoundary(
+                  key: widget.controller._syphonBoundaryKey,
+                  child: widget.syphonView,
+                ),
+              ),
+            child!,
+          ],
+        );
+      },
+      child: widget.child,
     );
   }
 }
