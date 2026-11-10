@@ -67,15 +67,8 @@ class SyphonServerController {
   }
 
   Future<void> publishWidget() async {
-    final context = _syphonBoundaryKey.currentContext;
-    if (context == null) {
-      throw StateError('RepaintBoundary is not mounted in the widget tree');
-    }
-    final boundary = context.findRenderObject() as RenderRepaintBoundary?;
+    final boundary = await _waitUntilBoundaryReady();
     if (boundary == null) {
-      throw StateError('RenderRepaintBoundary not found');
-    }
-    if (!boundary.hasSize || boundary.size.isEmpty) {
       throw StateError('RepaintBoundary has not completed layout');
     }
 
@@ -124,22 +117,37 @@ class SyphonServerController {
     }
   }
 
-  Future<void> _waitUntilBoundaryReady() async {
-    for (var attempt = 0; attempt < 5; attempt++) {
+  /// Waits until the offscreen boundary is laid out and painted.
+  /// `toImage()` requires `!debugNeedsPaint`; layout alone is not enough.
+  Future<RenderRepaintBoundary?> _waitUntilBoundaryReady() async {
+    RenderRepaintBoundary? boundary;
+    for (var attempt = 0; attempt < 20; attempt++) {
       final context = _syphonBoundaryKey.currentContext;
-      final boundary = context?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary != null && boundary.hasSize && !boundary.size.isEmpty) {
-        return;
+      boundary = context?.findRenderObject() as RenderRepaintBoundary?;
+      final hasLayout =
+          boundary != null && boundary.hasSize && !boundary.size.isEmpty;
+      // In release, debugNeedsPaint is always false; still wait one painted frame.
+      final painted = hasLayout && !boundary.debugNeedsPaint;
+      if (painted && attempt > 0) {
+        return boundary;
       }
-      final frame = Completer<void>();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!frame.isCompleted) {
-          frame.complete();
-        }
-      });
-      WidgetsBinding.instance.scheduleFrame();
-      await frame.future;
+      await _waitForNextFrame();
     }
+    if (boundary != null && boundary.hasSize && !boundary.size.isEmpty) {
+      return boundary;
+    }
+    return null;
+  }
+
+  Future<void> _waitForNextFrame() async {
+    final frame = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!frame.isCompleted) {
+        frame.complete();
+      }
+    });
+    WidgetsBinding.instance.scheduleFrame();
+    await frame.future;
   }
 
   void dispose() {
@@ -171,19 +179,19 @@ class _SyphonServerState extends State<SyphonServer> {
     return ValueListenableBuilder<bool>(
       valueListenable: widget.controller.showSyphonView,
       builder: (context, showSyphonView, _) {
-        if (!showSyphonView) {
-          return widget.child;
-        }
-        // Positioned does not affect Stack size, so a large offscreen view
-        // will not expand the local layout.
+        // Keep a stable Stack so [child] (e.g. PlatformMenuBar) is not remounted
+        // when the offscreen Syphon view is toggled.
         return Stack(
           children: [
             Positioned(
               left: -10000,
               top: -10000,
-              child: RepaintBoundary(
-                key: widget.controller._syphonBoundaryKey,
-                child: widget.syphonView,
+              child: Offstage(
+                offstage: !showSyphonView,
+                child: RepaintBoundary(
+                  key: widget.controller._syphonBoundaryKey,
+                  child: widget.syphonView,
+                ),
               ),
             ),
             widget.child,
