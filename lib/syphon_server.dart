@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ class SyphonServerController {
       <SyphonServerStatusListener>[];
 
   /// Controls whether the offscreen [SyphonServer.syphonView] is mounted.
+  /// Kept for API compatibility; the view stays in the tree so it can paint.
   final ValueNotifier<bool> showSyphonView = ValueNotifier(false);
 
   bool _disposed = false;
@@ -45,7 +47,6 @@ class SyphonServerController {
     try {
       await _channel.invokeMethod<void>('start', <String, dynamic>{'name': name});
       showSyphonView.value = true;
-      await _waitUntilBoundaryReady();
       await publishWidget();
       _notifyStatus(true);
     } catch (error) {
@@ -67,32 +68,51 @@ class SyphonServerController {
   }
 
   Future<void> publishWidget() async {
-    final boundary = await _waitUntilBoundaryReady();
-    if (boundary == null) {
-      throw StateError('RepaintBoundary has not completed layout');
-    }
+    Object? lastError;
 
-    final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
-    try {
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData == null) {
-        throw StateError('Failed to encode frame pixels');
+    // Retry: child widgets (e.g. async setState) can dirty paint between
+    // readiness checks and toImage().
+    for (var attempt = 0; attempt < 10; attempt++) {
+      final boundary = await _waitUntilBoundaryReady();
+      if (boundary == null) {
+        lastError = StateError('RepaintBoundary is not ready to capture');
+        await _waitForNextFrame();
+        continue;
       }
 
-      final pixels = byteData.buffer.asUint8List(
-        byteData.offsetInBytes,
-        byteData.lengthInBytes,
-      );
+      try {
+        final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
+        try {
+          final ByteData? byteData =
+              await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+          if (byteData == null) {
+            throw StateError('Failed to encode frame pixels');
+          }
 
-      await _channel.invokeMethod<void>('publish', <String, dynamic>{
-        'width': image.width,
-        'height': image.height,
-        'pixels': pixels,
-      });
-    } finally {
-      image.dispose();
+          final pixels = byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          );
+
+          await _channel.invokeMethod<void>('publish', <String, dynamic>{
+            'width': image.width,
+            'height': image.height,
+            'pixels': pixels,
+          });
+          return;
+        } finally {
+          image.dispose();
+        }
+      } catch (error) {
+        lastError = error;
+        if (kDebugMode) {
+          debugPrint('Syphon publishWidget attempt ${attempt + 1} failed: $error');
+        }
+        await _waitForNextFrame();
+      }
     }
+
+    throw lastError ?? StateError('publishWidget failed');
   }
 
   Future<void> _stopInternal({bool forceNotifyStopped = false}) async {
@@ -118,23 +138,17 @@ class SyphonServerController {
   }
 
   /// Waits until the offscreen boundary is laid out and painted.
-  /// `toImage()` requires `!debugNeedsPaint`; layout alone is not enough.
+  /// Never returns a boundary that still `debugNeedsPaint`.
   Future<RenderRepaintBoundary?> _waitUntilBoundaryReady() async {
-    RenderRepaintBoundary? boundary;
-    for (var attempt = 0; attempt < 20; attempt++) {
+    for (var attempt = 0; attempt < 60; attempt++) {
       final context = _syphonBoundaryKey.currentContext;
-      boundary = context?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary = context?.findRenderObject() as RenderRepaintBoundary?;
       final hasLayout =
           boundary != null && boundary.hasSize && !boundary.size.isEmpty;
-      // In release, debugNeedsPaint is always false; still wait one painted frame.
-      final painted = hasLayout && !boundary.debugNeedsPaint;
-      if (painted && attempt > 0) {
+      if (hasLayout && !boundary.debugNeedsPaint) {
         return boundary;
       }
       await _waitForNextFrame();
-    }
-    if (boundary != null && boundary.hasSize && !boundary.size.isEmpty) {
-      return boundary;
     }
     return null;
   }
@@ -176,28 +190,21 @@ class SyphonServer extends StatefulWidget {
 class _SyphonServerState extends State<SyphonServer> {
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: widget.controller.showSyphonView,
-      builder: (context, showSyphonView, _) {
-        // Keep a stable Stack so [child] (e.g. PlatformMenuBar) is not remounted
-        // when the offscreen Syphon view is toggled.
-        return Stack(
-          children: [
-            Positioned(
-              left: -10000,
-              top: -10000,
-              child: Offstage(
-                offstage: !showSyphonView,
-                child: RepaintBoundary(
-                  key: widget.controller._syphonBoundaryKey,
-                  child: widget.syphonView,
-                ),
-              ),
-            ),
-            widget.child,
-          ],
-        );
-      },
+    // Always keep the offscreen view in the tree and painted.
+    // Offstage skips paint and breaks [RepaintBoundary.toImage].
+    // A stable Stack also avoids remounting [child] (e.g. PlatformMenuBar).
+    return Stack(
+      children: [
+        Positioned(
+          left: -10000,
+          top: -10000,
+          child: RepaintBoundary(
+            key: widget.controller._syphonBoundaryKey,
+            child: widget.syphonView,
+          ),
+        ),
+        widget.child,
+      ],
     );
   }
 }
