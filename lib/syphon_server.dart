@@ -27,8 +27,8 @@ class SyphonServerController {
   /// Whether this controller considers the server started.
   bool get isStarted => _running;
 
-  /// Registers a listener for start / stop status changes.
-  void onStatusListener(SyphonServerStatusListener listener) {
+  /// Adds a listener for start / stop status changes.
+  void addStatusListener(SyphonServerStatusListener listener) {
     _statusListeners.add(listener);
   }
 
