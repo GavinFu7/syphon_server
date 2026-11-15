@@ -1,3 +1,9 @@
+## 0.0.3
+
+* Rename `onStatusListener` to `addStatusListener`.
+* Recommend placing `SyphonServer` above routes (for example in `MaterialApp.builder`) so the offscreen view is not constrained by page layout.
+* Update example and docs to match.
+
 ## 0.0.2
 
 * Add `onStatusListener` / `removeStatusListener` to observe server start and stop.

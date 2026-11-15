@@ -23,7 +23,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  syphon_server: ^0.0.2
+  syphon_server: ^0.0.3
 ```
 
 Then run:
@@ -48,9 +48,45 @@ Rebuild the app completely after changing entitlements.
 
 ## Quick start
 
+Place `SyphonServer` above your routes (for example in `MaterialApp.builder`) so the offscreen `syphonView` is not constrained by page layout. Use one shared `SyphonServerController` for both the wrapper and your UI controls:
+
 ```dart
 import 'package:flutter/material.dart';
 import 'package:syphon_server/syphon_server.dart';
+
+final controller = SyphonServerController();
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      builder: (context, child) {
+        return SyphonServer(
+          controller: controller,
+          // Frame published to Syphon clients (fixed size recommended)
+          syphonView: Container(
+            width: 1920,
+            height: 1080,
+            color: Colors.black,
+            alignment: Alignment.center,
+            child: const Text(
+              'Syphon Output',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+      home: const MyPage(),
+    );
+  }
+}
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -60,8 +96,6 @@ class MyPage extends StatefulWidget {
 }
 
 class _MyPageState extends State<MyPage> {
-  final controller = SyphonServerController();
-
   void _onStatus(bool running) {
     debugPrint('Syphon server ${running ? 'started' : 'stopped'}');
   }
@@ -69,7 +103,7 @@ class _MyPageState extends State<MyPage> {
   @override
   void initState() {
     super.initState();
-    controller.onStatusListener(_onStatus);
+    controller.addStatusListener(_onStatus);
   }
 
   @override
@@ -82,21 +116,8 @@ class _MyPageState extends State<MyPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SyphonServer(
-      controller: controller,
-      // Frame published to Syphon clients (fixed size recommended)
-      syphonView: Container(
-        width: 1920,
-        height: 1080,
-        color: Colors.black,
-        alignment: Alignment.center,
-        child: const Text(
-          'Syphon Output',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      // Local UI
-      child: Center(
+    return Scaffold(
+      body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -136,7 +157,7 @@ void onStatus(bool running) {
   // false -> stop(), or start() failed and was cleaned up
 }
 
-controller.onStatusListener(onStatus);
+controller.addStatusListener(onStatus);
 controller.removeStatusListener(onStatus);
 ```
 
@@ -148,7 +169,7 @@ controller.removeStatusListener(onStatus);
 
 ### `SyphonServer`
 
-Wraps the local `child` and mounts an offscreen `syphonView` while the server is running.
+Wraps the local `child` and mounts an offscreen `syphonView` while the server is running. Prefer placing it near the app root (for example `MaterialApp.builder`).
 
 | Parameter | Description |
 | --- | --- |
@@ -165,7 +186,7 @@ Wraps the local `child` and mounts an offscreen `syphonView` while the server is
 | `isRunning()` | Returns whether the native server is running |
 | `isStarted` | Whether this controller currently considers the server started |
 | `publishWidget()` | Captures the current `syphonView` and publishes it |
-| `onStatusListener(listener)` | Registers a start / stop status listener |
+| `addStatusListener(listener)` | Registers a start / stop status listener |
 | `removeStatusListener(listener)` | Removes a status listener |
 | `showSyphonView` | `ValueNotifier<bool>` for whether the offscreen view is mounted |
 | `dispose()` | Releases controller resources and clears listeners |

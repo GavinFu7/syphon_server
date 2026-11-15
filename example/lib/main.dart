@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:syphon_server/syphon_server.dart';
 import 'output_view.dart';
 
+final SyphonServerController syphonServerController = SyphonServerController();
+
 void main() {
   runApp(const MyApp());
 }
@@ -11,7 +13,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(home: Home());
+    return MaterialApp(
+      builder: (context, child) {
+        return SyphonServer(
+        syphonView: const OutputView(),
+        controller: syphonServerController,
+        child: Home()
+        );
+      }
+    );
   }
 }
 
@@ -25,7 +35,6 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final SyphonServerController syphonServerController = SyphonServerController();
 
-
   void onSyphonServerStatusChange(bool running) {
     debugPrint('Syphon server status: ${running ? 'started' : 'stopped'}');
   }
@@ -33,7 +42,7 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    syphonServerController.onStatusListener(onSyphonServerStatusChange);
+    syphonServerController.addStatusListener(onSyphonServerStatusChange);
   }
 
   @override
@@ -80,51 +89,47 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('Syphon Server Example'),
       ),
-      body: SyphonServer(
-        syphonView: const OutputView(),
-        controller: syphonServerController,
-        child: Container(
-          color: Colors.white,
-          child: Column(
-            children: [
-              Container(
-                height: 70,
-                alignment: Alignment.center,
-                child: TextButton(
-                  style: ButtonStyle(
-                    foregroundColor:
-                        WidgetStateProperty.all<Color>(Colors.blue),
-                  ),
-                  onPressed: _start,
-                  child: const Text('Start Syphon Server'),
+      body: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+            Container(
+              height: 70,
+              alignment: Alignment.center,
+              child: TextButton(
+                style: ButtonStyle(
+                  foregroundColor:
+                      WidgetStateProperty.all<Color>(Colors.blue),
                 ),
+                onPressed: _start,
+                child: const Text('Start Syphon Server'),
               ),
-              Container(
-                height: 70,
-                alignment: Alignment.center,
-                child: TextButton(
-                  style: ButtonStyle(
-                    foregroundColor:
-                        WidgetStateProperty.all<Color>(Colors.blue),
-                  ),
-                  onPressed: _stop,
-                  child: const Text('Stop Syphon Server'),
+            ),
+            Container(
+              height: 70,
+              alignment: Alignment.center,
+              child: TextButton(
+                style: ButtonStyle(
+                  foregroundColor:
+                      WidgetStateProperty.all<Color>(Colors.blue),
                 ),
+                onPressed: _stop,
+                child: const Text('Stop Syphon Server'),
               ),
-              Container(
-                height: 70,
-                alignment: Alignment.center,
-                child: TextButton(
-                  style: ButtonStyle(
-                    foregroundColor:
-                        WidgetStateProperty.all<Color>(Colors.blue),
-                  ),
-                  onPressed: _changeOutputText,
-                  child: const Text('change output text'),
+            ),
+            Container(
+              height: 70,
+              alignment: Alignment.center,
+              child: TextButton(
+                style: ButtonStyle(
+                  foregroundColor:
+                      WidgetStateProperty.all<Color>(Colors.blue),
                 ),
+                onPressed: _changeOutputText,
+                child: const Text('change output text'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
