@@ -16,11 +16,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       builder: (context, child) {
         return SyphonServer(
-        syphonView: const OutputView(),
-        controller: syphonServerController,
-        child: Home()
+          syphonView: const OutputView(),
+          controller: syphonServerController,
+          child: const Home(),
         );
-      }
+      },
     );
   }
 }
@@ -33,8 +33,6 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  final SyphonServerController syphonServerController = SyphonServerController();
-
   void onSyphonServerStatusChange(bool running) {
     debugPrint('Syphon server status: ${running ? 'started' : 'stopped'}');
   }
