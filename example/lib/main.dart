@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:syphon_server/syphon_server.dart';
+
 import 'output_view.dart';
 
 final SyphonServerController syphonServerController = SyphonServerController();
@@ -84,9 +85,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Syphon Server Example'),
-      ),
+      appBar: AppBar(title: const Text('Syphon Server Example')),
       body: Container(
         color: Colors.white,
         child: Column(
@@ -96,8 +95,7 @@ class _HomeState extends State<Home> {
               alignment: Alignment.center,
               child: TextButton(
                 style: ButtonStyle(
-                  foregroundColor:
-                      WidgetStateProperty.all<Color>(Colors.blue),
+                  foregroundColor: WidgetStateProperty.all<Color>(Colors.blue),
                 ),
                 onPressed: _start,
                 child: const Text('Start Syphon Server'),
@@ -108,8 +106,7 @@ class _HomeState extends State<Home> {
               alignment: Alignment.center,
               child: TextButton(
                 style: ButtonStyle(
-                  foregroundColor:
-                      WidgetStateProperty.all<Color>(Colors.blue),
+                  foregroundColor: WidgetStateProperty.all<Color>(Colors.blue),
                 ),
                 onPressed: _stop,
                 child: const Text('Stop Syphon Server'),
@@ -120,8 +117,7 @@ class _HomeState extends State<Home> {
               alignment: Alignment.center,
               child: TextButton(
                 style: ButtonStyle(
-                  foregroundColor:
-                      WidgetStateProperty.all<Color>(Colors.blue),
+                  foregroundColor: WidgetStateProperty.all<Color>(Colors.blue),
                 ),
                 onPressed: _changeOutputText,
                 child: const Text('change output text'),

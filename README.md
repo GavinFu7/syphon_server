@@ -23,7 +23,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  syphon_server: ^0.0.3
+  syphon_server: ^0.0.4
 ```
 
 Then run:
@@ -51,7 +51,7 @@ Rebuild the app completely after changing entitlements.
 Place `SyphonServer` above your routes (for example in `MaterialApp.builder`) so the offscreen `syphonView` is not constrained by page layout. Use one shared `SyphonServerController` for both the wrapper and your UI controls:
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:syphon_server/syphon_server.dart';
 
 final controller = SyphonServerController();

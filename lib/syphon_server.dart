@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 /// Called when the Syphon server starts (`true`) or stops (`false`),
 /// including stops caused by errors during [SyphonServerController.start].
@@ -43,7 +43,9 @@ class SyphonServerController {
   /// On failure, cleans up, notifies listeners with `false`, then rethrows.
   Future<void> start({String name = 'Syphon Server'}) async {
     try {
-      await _channel.invokeMethod<void>('start', <String, dynamic>{'name': name});
+      await _channel.invokeMethod<void>('start', <String, dynamic>{
+        'name': name,
+      });
       showSyphonView.value = true;
       await _waitUntilBoundaryReady();
       await publishWidget();
@@ -81,8 +83,9 @@ class SyphonServerController {
 
     final ui.Image image = await boundary.toImage(pixelRatio: 1.0);
     try {
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
       if (byteData == null) {
         throw StateError('Failed to encode frame pixels');
       }

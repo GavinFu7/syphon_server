@@ -1,3 +1,8 @@
+## 0.0.4
+
+* Stop importing deprecated `package:flutter/material.dart`; the plugin now uses `package:flutter/widgets.dart`.
+* Update the example app to `package:material_ui/material_ui.dart`.
+
 ## 0.0.3
 
 * Rename `onStatusListener` to `addStatusListener`.

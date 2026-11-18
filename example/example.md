@@ -1,8 +1,9 @@
 ## [lib/main.dart](lib/main.dart)
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:syphon_server/syphon_server.dart';
+
 import 'output_view.dart';
 
 final SyphonServerController syphonServerController = SyphonServerController();
@@ -87,9 +88,7 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Syphon Server Example'),
-      ),
+      appBar: AppBar(title: const Text('Syphon Server Example')),
       body: Container(
         color: Colors.white,
         child: Column(
@@ -138,7 +137,7 @@ class _HomeState extends State<Home> {
 ## [lib/output_view.dart](lib/output_view.dart)
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 typedef OutputTextSetter = void Function(String text);
 
